@@ -1,5 +1,5 @@
 #!/bin/sh
-# Nick's Arch Restore Boostrapping Script (NARBS)
+# Nick's Arch Replicating Boostrapping Script (NARBS)
 # by Luke Smith <luke@lukesmith.xyz>
 # License: GNU GPLv3
 
