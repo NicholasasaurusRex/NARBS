@@ -115,14 +115,15 @@ A,mutt-wizard-git,is a light-weight terminal-based email system.
 ,whois,whois.
 ,wireless_tools,wireless tools.
 ,wire-desktop,wire.
+,bluez-utils,for neomutt email cient.
+,transmission-cli,torrent client.
 A,colorpicker,terminal based color picker.
 A,mutt-wizard-git,mutt wizard email client setup tool makes setting up mutt bearable.
-,bluez-utils,for neomutt email cient.
 A,spotify,curses interface for transmission-cli.
 A,ttf-vista-fonts,torrent cli client.
 A,urlview-git,used with neomutt.
 A,tremc-git,used with torrent downloading.
-,transmission-cli,torrent client.
+A,oh-my-zsh-git,Oh-My-Zsh.
 G,https://github.com/NicholasasaurusRex/dwmblocks.git,serves as the modular status bar.
 G,https://github.com/NicholasasaurusRex/dmenu.git,runs commands and provides a UI for selection.
 G,https://github.com/NicholasasaurusRex/st.git,is my custom build of suckless's terminal emulator.
