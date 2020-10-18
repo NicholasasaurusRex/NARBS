@@ -1,87 +1,140 @@
 #!/bin/sh
-# Nick's Arch Replicating Boostrapping Script (NARBS)
-# by Luke Smith <luke@lukesmith.xyz>
-# License: GNU GPLv3
+#############################################
+# Nick's Archlinux Restore Bootstrap Script #
+#############################################
 
-### OPTIONS AND VARIABLES ###
+### OPTIONS
 
-while getopts ":a:r:b:p:h" o; do case "${o}" in
-	h) printf "Optional arguments for custom use:\\n  -r: Dotfiles repository (local file or url)\\n  -p: Dependencies and programs csv (local file or url)\\n  -a: AUR helper (must have pacman-like syntax)\\n  -h: Show this message\\n" && exit ;;
-	r) dotfilesrepo=${OPTARG} && git ls-remote "$dotfilesrepo" || exit ;;
-	b) repobranch=${OPTARG} ;;
-	p) progsfile=${OPTARG} ;;
-	a) aurhelper=${OPTARG} ;;
-	*) printf "Invalid option: -%s\\n" "$OPTARG" && exit ;;
+while getopts ":a:r:b:p:h" o
+  do case "${o}" in
+
+    h) printf "\nUsage:\n\n    narbs [option] [file]\n    narbs [option] [url]\n    narbs [option] [branch]\n    narbs [option] [branch] [option] [url] [option] [file]\n\n    Example: narbs -b master -r https://git.com/name/file.git -p /home/name/file.csv\n
+
+    Options:\n
+        -b        Repository branch (e.g. master, dev, test,)
+        -r        Configuration files repository (url or file)
+        -p        Dependencies and programs csv (url or file)
+        -h        Show this message\n\n" && exit ;;
+
+  	r) dotfilesrepo=${OPTARG} && git ls-remote "$dotfilesrepo" || exit ;;
+  	b) repobranch=${OPTARG} ;;
+  	p) progsfile=${OPTARG} ;;
+  	a) aurhelper=${OPTARG} ;;
+  	*) printf "Invalid option: -%s\\n" "$OPTARG" && exit ;;
+
 esac done
+
+
+
+### VARIABLES
 
 [ -z "$dotfilesrepo" ] && dotfilesrepo="https://github.com/NicholasasaurusRex/dotFiles.git"
 [ -z "$progsfile" ] && progsfile="https://raw.githubusercontent.com/NicholasasaurusRex/NARBS/master/progs.csv"
 [ -z "$aurhelper" ] && aurhelper="yay"
 [ -z "$repobranch" ] && repobranch="master"
 
-### FUNCTIONS ###
 
-if type xbps-install >/dev/null 2>&1; then
-	installpkg(){ xbps-install -y "$1" >/dev/null 2>&1 ;}
-	grepseq="\"^[PGV]*,\""
-elif type apt >/dev/null 2>&1; then
-	installpkg(){ apt-get install -y "$1" >/dev/null 2>&1 ;}
-	grepseq="\"^[PGU]*,\""
-else
-	distro="arch"
-	installpkg(){ pacman --noconfirm --needed -S "$1" >/dev/null 2>&1 ;}
-	grepseq="\"^[PGA]*,\""
-fi
+
+### SUPPORTING FUNCTIONS
+
+installpkg(){ pacman --noconfirm --needed -S "$1" >/dev/null 2>&1 ;}
 
 error() { clear; printf "ERROR:\\n%s\\n" "$1"; exit;}
 
-welcomemsg() { \
-	dialog --title "Welcome!" --msgbox "Welcome to Nick's Archlinux Replicating Bootstrap Script!\\n\\nThis script will automatically install a fully-featured Arhc Linux desktop.\\n\\n" 10 60
-
-	dialog --colors --title "Important Note!" --yes-label "All ready!" --no-label "Return..." --yesno "Be sure the computer you are using has current pacman updates and refreshed Arch keyrings.\\n\\nIf it does not, the installation of some programs might fail." 8 70
+aurinstall() { \
+	dialog --title "LARBS Installation" --infobox "Installing \`$1\` ($n of $total) from the AUR. $1 $2" 5 70
+	echo "$aurinstalled" | grep -q "^$1$" && return
+	sudo -u "$name" $aurhelper -S --noconfirm "$1" >/dev/null 2>&1
 	}
 
+
+gitmakeinstall() {
+	progname="$(basename "$1" .git)"
+	dir="$repodir/$progname"
+	dialog --title "LARBS Installation" --infobox "Installing \`$progname\` ($n of $total) via \`git\` and \`make\`. $(basename "$1") $2" 5 70
+	sudo -u "$name" git clone --depth 1 "$1" "$dir" >/dev/null 2>&1 || { cd "$dir" || return ; sudo -u "$name" git pull --force origin master;}
+	cd "$dir" || exit
+	make >/dev/null 2>&1
+	make install >/dev/null 2>&1
+	cd /tmp || return ;}
+
+
+pipinstall() { \
+	dialog --title "LARBS Installation" --infobox "Installing the Python package \`$1\` ($n of $total). $1 $2" 5 70
+	command -v pip || installpkg python-pip >/dev/null 2>&1
+	yes | pip install "$1"
+	}
+
+
+maininstall() { # Installs all needed programs from main repo.
+	dialog --title "LARBS Installation" --infobox "Installing \`$1\` ($n of $total). $1 $2" 5 70
+	installpkg "$1"
+	}
+
+
+### MAIN FUNCTIONS
+
+#(1)
+welcomemsg() {
+  dialog --title "Nick's Archlinux Restore Bootstrap Script." --yes-label "Enter" --no-label "Exit" --yesno "\\n\\nThis is an automated installation script used to efficiently restore Archlinux after reinstallation." 10 55
+}
+
+
+#(2)
 getuserandpass() { \
-	# Prompts user for new username an password.
-	name=$(dialog --inputbox "Enter the user account." 10 60 3>&1 1>&2 2>&3 3>&1) || exit
-	while ! echo "$name" | grep "^[a-z_][a-z0-9_-]*$" >/dev/null 2>&1; do
-		name=$(dialog --no-cancel --inputbox "Username not valid. Username must begin with a letter, with only lowercase letters, - or _." 10 60 3>&1 1>&2 2>&3 3>&1)
+# Prompts user for new username an password.
+	name=$(dialog --inputbox "\\nEnter the user account." 10 50 3>&1 1>&2 2>&3 3>&1) || exit
+	while ! echo "$name" | grep -q "^[a-z_][a-z0-9_-]*$"; do
+		name=$(dialog --no-cancel --inputbox "\\nUsername not valid." 10 50 3>&1 1>&2 2>&3 3>&1)
 	done
-	pass1=$(dialog --no-cancel --passwordbox "Enter a password." 10 60 3>&1 1>&2 2>&3 3>&1)
-	pass2=$(dialog --no-cancel --passwordbox "Retype password." 10 60 3>&1 1>&2 2>&3 3>&1)
+	pass1=$(dialog --no-cancel --passwordbox "\\nEnter a password." 10 50 3>&1 1>&2 2>&3 3>&1)
+	pass2=$(dialog --no-cancel --passwordbox "\\nRetype password." 10 50 3>&1 1>&2 2>&3 3>&1)
 	while ! [ "$pass1" = "$pass2" ]; do
 		unset pass2
-		pass1=$(dialog --no-cancel --passwordbox "Passwords do not match.\\n\\nEnter password again." 10 60 3>&1 1>&2 2>&3 3>&1)
-		pass2=$(dialog --no-cancel --passwordbox "Retype password." 10 60 3>&1 1>&2 2>&3 3>&1)
+		pass1=$(dialog --no-cancel --passwordbox "\\nPasswords do not match.\\nEnter password again." 10 50 3>&1 1>&2 2>&3 3>&1)
+		pass2=$(dialog --no-cancel --passwordbox "\\nRetype password." 10 50 3>&1 1>&2 2>&3 3>&1)
 	done ;}
 
+
+#(3)
 usercheck() { \
 	! (id -u "$name" >/dev/null) 2>&1 ||
-	dialog --colors --title "WARNING!" --yes-label "CONTINUE" --no-label "No wait..." --yesno "The user \`$name\` already exists on this system. NARBS can install for an existing user, but it will \\Zboverwrite\\Zn any conflicting settings/dotfiles on that user account.\\n\\nNARBS will \\Zbnot\\Zn overwrite your user files, documents, videos, etc., so don't worry about that, but only click <CONTINUE> if you don't mind your settings being overwritten.\\n\\nNote also that NARBS will change $name's password to the one you just gave." 14 70
+	dialog --colors --title "Nick's Archlinux Restore Bootstrap Script." --yes-label "ENTER" --no-label "EXIT" --yesno "\\nThe user \`$name\` already exists. Do you wish to \\Zboverwrite\\Zn the settings on this users account?\\n\\nThis will \\Zbnot\\Zn overwrite any documents, videos, pictures, etc." 10 50
 	}
 
+
+#(4)
 preinstallmsg() { \
-	dialog --title "Let's get this party started!" --yes-label "Let's go!" --no-label "No, nevermind!" --yesno "The rest of the installation will now be totally automated, so you can sit back and relax.\\n\\nIt will take some time, but when done, you can relax even more with your complete system.\\n\\nNow just press <Let's go!> and the system will begin installation!" 13 60 || { clear; exit; }
+	dialog --title "Nick's Archlinux Restore Bootstrap Script." --yes-label "ENTER" --no-label "EXIT" --yesno "\\n\\nTo continue with the installation hit ENTER if not please EXIT" 10 50 || { clear; exit; }
 	}
 
+
+#(5)
+refreshkeys() { \
+	dialog --infobox "Refreshing Arch Keyring..." 4 50
+	pacman -Q artix-keyring >/dev/null 2>&1 && pacman --noconfirm -S archlinux-keyring >/dev/null 2>&1
+	pacman --noconfirm -S archlinux-keyring >/dev/null 2>&1
+	}
+
+
+#(6)
 adduserandpass() { \
 	# Adds user `$name` with password $pass1.
 	dialog --infobox "Adding user \"$name\"..." 4 50
-	useradd -m -g wheel -s /bin/bash "$name" >/dev/null 2>&1 ||
+	useradd -m -g wheel -s /bin/zsh "$name" >/dev/null 2>&1 ||
 	usermod -a -G wheel "$name" && mkdir -p /home/"$name" && chown "$name":wheel /home/"$name"
-	repodir="/home/$name/.local/src"; mkdir -p "$repodir"; chown -R "$name":wheel $(dirname "$repodir")
+	repodir="/home/$name/.local/src"; mkdir -p "$repodir"; chown -R "$name":wheel "$(dirname "$repodir")"
 	echo "$name:$pass1" | chpasswd
 	unset pass1 pass2 ;}
 
-refreshkeys() { \
-	dialog --infobox "Refreshing Arch Keyring..." 4 40
-	pacman --noconfirm -Sy archlinux-keyring >/dev/null 2>&1
-	}
 
+#(7)
 newperms() { # Set special sudoers settings for install (or after).
-	sed -i "/#NARBS/d" /etc/sudoers
-	echo "$* #NARBS" >> /etc/sudoers ;}
+	sed -i "/#LARBS/d" /etc/sudoers
+	echo "$* #LARBS" >> /etc/sudoers ;}
 
+
+#(8)
 manualinstall() { # Installs $1 manually if not installed. Used only for AUR helper here.
 	[ -f "/usr/bin/$1" ] || (
 	dialog --infobox "Installing \"$1\", an AUR helper..." 4 50
@@ -93,40 +146,15 @@ manualinstall() { # Installs $1 manually if not installed. Used only for AUR hel
 	sudo -u "$name" makepkg --noconfirm -si >/dev/null 2>&1
 	cd /tmp || return) ;}
 
-maininstall() { # Installs all needed programs from main repo.
-	dialog --title "NARBS Installation" --infobox "Installing \`$1\` ($n of $total). $1 $2" 5 70
-	installpkg "$1"
-	}
 
-gitmakeinstall() {
-	progname="$(basename "$1" .git)"
-	dir="$repodir/$progname"
-	dialog --title "NARBS Installation" --infobox "Installing \`$progname\` ($n of $total) via \`git\` and \`make\`. $(basename "$1") $2" 5 70
-	sudo -u "$name" git clone --depth 1 "$1" "$dir" >/dev/null 2>&1 || { cd "$dir" || return ; sudo -u "$name" git pull --force origin master;}
-	cd "$dir" || exit
-	make >/dev/null 2>&1
-	make install >/dev/null 2>&1
-	cd /tmp || return ;}
-
-aurinstall() { \
-	dialog --title "NARBS Installation" --infobox "Installing \`$1\` ($n of $total) from the AUR. $1 $2" 5 70
-	echo "$aurinstalled" | grep "^$1$" >/dev/null 2>&1 && return
-	sudo -u "$name" $aurhelper -S --noconfirm "$1" >/dev/null 2>&1
-	}
-
-pipinstall() { \
-	dialog --title "NARBS Installation" --infobox "Installing the Python package \`$1\` ($n of $total). $1 $2" 5 70
-	command -v pip || installpkg python-pip >/dev/null 2>&1
-	yes | pip install "$1"
-	}
-
+#(9)
 installationloop() { \
-	([ -f "$progsfile" ] && cp "$progsfile" /tmp/progs.csv) || curl -Ls "$progsfile" | sed '/^#/d' | eval grep "$grepseq" > /tmp/progs.csv
+	([ -f "$progsfile" ] && cp "$progsfile" /tmp/progs.csv) || curl -Ls "$progsfile" | sed '/^#/d' > /tmp/progs.csv
 	total=$(wc -l < /tmp/progs.csv)
 	aurinstalled=$(pacman -Qqm)
 	while IFS=, read -r tag program comment; do
 		n=$((n+1))
-		echo "$comment" | grep "^\".*\"$" >/dev/null 2>&1 && comment="$(echo "$comment" | sed "s/\(^\"\|\"$\)//g")"
+		echo "$comment" | grep -q "^\".*\"$" && comment="$(echo "$comment" | sed "s/\(^\"\|\"$\)//g")"
 		case "$tag" in
 			"A") aurinstall "$program" "$comment" ;;
 			"G") gitmakeinstall "$program" "$comment" ;;
@@ -135,8 +163,10 @@ installationloop() { \
 		esac
 	done < /tmp/progs.csv ;}
 
+
+#(10)
 putgitrepo() { # Downloads a gitrepo $1 and places the files in $2 only overwriting conflicts
-	dialog --infobox "Downloading and installing config files..." 4 60
+	dialog --infobox "Downloading and installing config files..." 4 50
 	[ -z "$3" ] && branch="master" || branch="$repobranch"
 	dir=$(mktemp -d)
 	[ ! -d "$2" ] && mkdir -p "$2"
@@ -145,104 +175,127 @@ putgitrepo() { # Downloads a gitrepo $1 and places the files in $2 only overwrit
 	sudo -u "$name" cp -rfT "$dir" "$2"
 	}
 
-systembeepoff() { dialog --infobox "Getting rid of that retarded error beep sound..." 10 50
+
+#(11)
+systembeepoff() { dialog --infobox "Turning off the system error beep..." 10 50
 	rmmod pcspkr
 	echo "blacklist pcspkr" > /etc/modprobe.d/nobeep.conf ;}
 
+
+#(12)
 finalize(){ \
-	dialog --infobox "Preparing welcome message..." 4 50
-	dialog --title "All done!" --msgbox "Congrats! Provided there were no hidden errors, the script completed successfully and all the programs and configuration files should be in place.\\n\\nTo run the new graphical environment, log out and log back in as your new user, then run the command \"startx\" to start the graphical environment (it will start automatically in tty1).\\n\\n.t Luke" 12 80
+	dialog --title "Nick's Archlinux Restore Bootstrap Script." --msgbox "\\nInstallation complete." 6 50
 	}
 
-### THE ACTUAL SCRIPT ###
 
-### This is how everything happens in an intuitive format and order.
+####################
+### SCRIPT START ###
+####################
 
 # Check if user is root on Arch distro. Install dialog.
-installpkg dialog || error "Are you sure you're running this as the root user and have an internet connection?"
+pacman --noconfirm --needed -Sy dialog || error "Are you running this as the root user? Do have an internet connection?"
 
 # Welcome user and pick dotfiles.
+#(1)
 welcomemsg || error "User exited."
 
 # Get and verify username and password.
+#(2)
 getuserandpass || error "User exited."
 
 # Give warning if user already exists.
+#(3)
 usercheck || error "User exited."
 
 # Last chance for user to back out before install.
+#(4)
 preinstallmsg || error "User exited."
 
 ### The rest of the script requires no user input.
 
-adduserandpass || error "Error adding username and/or password."
-
 # Refresh Arch keyrings.
-refreshkeys || error "Error automatically refreshing Arch keyring. Consider doing so manually."
+#(5)
+refreshkeys || error "Error automatically refreshing Arch keyring."
 
-dialog --title "NARBS Installation" --infobox "Installing \`basedevel\` and \`git\` for installing other software required for the installation of other programs." 5 70
-installpkg curl
-installpkg base-devel
-installpkg git
-installpkg ntp
+for x in curl base-devel git ntp zsh; do
+	dialog --title "Nick's Archlinux Restore Bootstrap Script." --infobox "\\nInstalling \`x\`" 5 50
+	installpkg "$x"
+done
 
-dialog --title "NARBS Installation" --infobox "Synchronizing system time to ensure successful and secure installation of software..." 4 70
+dialog --title "Nick's Archlinux Restore Bootstrap Script." --infobox "\\nSynchronizing system time..." 5 50
 ntpdate 0.us.pool.ntp.org >/dev/null 2>&1
 
-[ "$distro" = arch ] && { \
-	[ -f /etc/sudoers.pacnew ] && cp /etc/sudoers.pacnew /etc/sudoers # Just in case
+#(6)
+adduserandpass || error "Error adding username and/or password."
 
-	# Allow user to run sudo without password. Since AUR programs must be installed
-	# in a fakeroot environment, this is required for all builds with AUR.
-	newperms "%wheel ALL=(ALL) NOPASSWD: ALL"
+[ -f /etc/sudoers.pacnew ] && cp /etc/sudoers.pacnew /etc/sudoers # Just in case
 
-	# Make pacman and yay colorful and adds eye candy on the progress bar because why not.
-	grep "^Color" /etc/pacman.conf >/dev/null || sed -i "s/^#Color$/Color/" /etc/pacman.conf
-	grep "ILoveCandy" /etc/pacman.conf >/dev/null || sed -i "/#VerbosePkgLists/a ILoveCandy" /etc/pacman.conf
+# Allow user to run sudo without password. Since AUR programs must be installed
+# in a fakeroot environment, this is required for all builds with AUR.
+#(7)
+newperms "%wheel ALL=(ALL) NOPASSWD: ALL"
 
-	# Use all cores for compilation.
-	sed -i "s/-j2/-j$(nproc)/;s/^#MAKEFLAGS/MAKEFLAGS/" /etc/makepkg.conf
+# Make pacman and yay colorful and adds eye candy on the progress bar because why not.
+grep -q "^Color" /etc/pacman.conf || sed -i "s/^#Color$/Color/" /etc/pacman.conf
+grep -q "ILoveCandy" /etc/pacman.conf || sed -i "/#VerbosePkgLists/a ILoveCandy" /etc/pacman.conf
 
-	manualinstall $aurhelper || error "Failed to install AUR helper."
-	}
+# Use all cores for compilation.
+sed -i "s/-j2/-j$(nproc)/;s/^#MAKEFLAGS/MAKEFLAGS/" /etc/makepkg.conf
+
+#(8)
+manualinstall $aurhelper || error "Failed to install AUR helper."
 
 # The command that does all the installing. Reads the progs.csv file and
 # installs each needed program the way required. Be sure to run this only after
 # the user has been created and has priviledges to run sudo without a password
 # and all build dependencies are installed.
+#(9)
 installationloop
 
-dialog --title "NARBS Installation" --infobox "Finally, installing \`libxft-bgra\` to enable color emoji in suckless software without crashes." 5 70
-yes | sudo -u "$name" $aurhelper -S libxft-bgra >/dev/null 2>&1
+dialog --title "Nick's Archlinux Restore Bootstrap Script." --infobox "\\nInstalling \`libxft-bgra-git\`" 5 50
+yes | sudo -u "$name" $aurhelper -S xorg-util-macros libxft-bgra-git >/dev/null 2>&1
 
 # Install the dotfiles in the user's home directory
+#(10)
 putgitrepo "$dotfilesrepo" "/home/$name" "$repobranch"
 rm -f "/home/$name/README.md" "/home/$name/LICENSE" "/home/$name/FUNDING.yml"
 # make git ignore deleted LICENSE & README.md files
-git update-index --assume-unchanged "/home/$name/README.md"
-git update-index --assume-unchanged "/home/$name/LICENSE"
+git update-index --assume-unchanged "/home/$name/README.md" "/home/$name/LICENSE" "/home/$name/FUNDING.yml"
 
 # Most important command! Get rid of the beep!
+#(11)
 systembeepoff
 
 # Make zsh the default shell for the user.
-chsh -s /bin/zsh $name >/dev/null 2>&1
+chsh -s /bin/zsh "$name" >/dev/null 2>&1
 sudo -u "$name" mkdir -p "/home/$name/.cache/zsh/"
 
 # dbus UUID must be generated for Artix runit.
 dbus-uuidgen > /var/lib/dbus/machine-id
 
-# Block Brave autoupdates just in case. (I don't know if these even exist on Linux, but whatever.)
-grep -q "laptop-updates.brave.com" /etc/hosts || echo "0.0.0.0 laptop-updates.brave.com" >> /etc/hosts
+# Tap to click
+[ ! -f /etc/X11/xorg.conf.d/40-libinput.conf ] && printf 'Section "InputClass"
+        Identifier "libinput touchpad catchall"
+        MatchIsTouchpad "on"
+        MatchDevicePath "/dev/input/event*"
+        Driver "libinput"
+	# Enable left mouse button by tapping
+	Option "Tapping" "on"
+EndSection' > /etc/X11/xorg.conf.d/40-libinput.conf
+
+# Fix fluidsynth/pulseaudio issue.
+grep -q "OTHER_OPTS='-a pulseaudio -m alsa_seq -r 48000'" /etc/conf.d/fluidsynth ||
+	echo "OTHER_OPTS='-a pulseaudio -m alsa_seq -r 48000'" >> /etc/conf.d/fluidsynth
 
 # Start/restart PulseAudio.
 killall pulseaudio; sudo -u "$name" pulseaudio --start
 
 # This line, overwriting the `newperms` command above will allow the user to run
 # serveral important commands, `shutdown`, `reboot`, updating, etc. without a password.
-[ "$distro" = arch ] && newperms "%wheel ALL=(ALL) ALL #NARBS
-%wheel ALL=(ALL) NOPASSWD: /usr/bin/bluetoothctl,/usr/bin/light,/usr/bin/powertop,/usr/bin/shutdown,/usr/bin/reboot,/usr/bin/systemctl suspend,/usr/bin/wifi-menu,/usr/bin/mount,/usr/bin/umount,/usr/bin/pacman -Syu,/usr/bin/pacman -Syyu,/usr/bin/packer -Syu,/usr/bin/packer -Syyu,/usr/bin/systemctl restart NetworkManager,/usr/bin/rc-service NetworkManager restart,/usr/bin/pacman -Syyu --noconfirm,/usr/bin/loadkeys,/usr/bin/yay,/usr/bin/pacman -Syyuw --noconfirm"
+newperms "%wheel ALL=(ALL) ALL #LARBS
+%wheel ALL=(ALL) NOPASSWD: /usr/bin/shutdown,/usr/bin/reboot,/usr/bin/systemctl suspend,/usr/bin/wifi-menu,/usr/bin/mount,/usr/bin/umount,/usr/bin/pacman -Syu,/usr/bin/pacman -Syyu,/usr/bin/packer -Syu,/usr/bin/packer -Syyu,/usr/bin/systemctl restart NetworkManager,/usr/bin/rc-service NetworkManager restart,/usr/bin/pacman -Syyu --noconfirm,/usr/bin/loadkeys,/usr/bin/yay,/usr/bin/pacman -Syyuw --noconfirm"
 
 # Last message! Install complete!
+#(12)
 finalize
 clear
