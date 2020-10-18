@@ -89,6 +89,7 @@
 ,wire-desktop,wire.
 ,bluez-utils,for neomutt email cient.
 ,transmission-cli,torrent client.
+,libreoffice-still,spreadsheet client
 ,ttf-linux-libertine,fonts.
 ,noto-fonts-emoji,fonts.
 ,ttf-inconsolata,fonts.
