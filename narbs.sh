@@ -105,7 +105,7 @@ usercheck() { \
 
 #(4)
 preinstallmsg() { \
-	dialog --title "Nick's Archlinux Restore Bootstrap Script." --yes-label "ENTER" --no-label "EXIT" --yesno "\\n\\nTo continue with the installation hit ENTER if not please EXIT" 10 50 || { clear; exit; }
+	dialog --title "Nick's Archlinux Restore Bootstrap Script." --yes-label "ENTER" --no-label "EXIT" --yesno "\\n\\nTo continue ENTER if not EXIT" 10 50 || { clear; exit; }
 	}
 
 
