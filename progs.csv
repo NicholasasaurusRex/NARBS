@@ -119,7 +119,7 @@ A,spotify,curses interface for transmission-cli.
 A,urlview-git,used with neomutt.
 A,tremc-git,used with torrent downloading.
 A,oh-my-zsh-git,Oh-My-Zsh.
-A,zsh-fast-syntax-highlighting,provides syntax highlighting in the shell.
+A,zsh-fast-syntax-highlighting,syntax highlighting.
 G,https://github.com/NicholasasaurusRex/dwmblocks.git,serves as the modular status bar.
 G,https://github.com/NicholasasaurusRex/dmenu.git,runs commands and provides a UI for selection.
 G,https://github.com/NicholasasaurusRex/st.git,is my custom build of suckless's terminal emulator.
