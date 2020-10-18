@@ -302,7 +302,8 @@ clear
 
 # Copy archFinalize to /home/code
 sleep 3
-echo " Copying archFinalize to /home/$name "
+echo " Copying zshrc, archFinalize to /home/$name "
 cp /root/archFinalize /home/$name/
+cp /root/1-zshr /home/$name/
 sleep 2
 echo "Exit root user and login with the new user"
